@@ -345,20 +345,6 @@ bool write_password_to_file(const char *password) {
     return true;
 }
 
-/**
- * Main function that performs the complete blind SQL injection attack.
- * 
- * Phase 1: Discovers the table name from information_schema.tables
- * Phase 2: Discovers the ID and password column names from information_schema.columns
- * Phase 3: Extracts the password (1-10 characters) using the discovered schema
- * Phase 4: Writes the password to [MY_ID].txt
- * 
- * Constraints:
- * - Total queries < 400
- * - Execution time < 30 seconds
- * 
- * @return 0 on success, 1 on error
- */
 int main(void) {
     printf("Starting Boolean-based Blind SQL Injection...\n");
     printf("Query limit: %d\n", MAX_QUERIES);
