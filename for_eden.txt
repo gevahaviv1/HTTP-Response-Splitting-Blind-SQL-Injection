@@ -1,0 +1,430 @@
+============================================================
+EXERCISE 4 - HTTP RESPONSE SPLITTING & BLIND SQL INJECTION
+COMPLETE COMMAND REFERENCE
+============================================================
+
+============================================================
+PART 1: HTTP RESPONSE SPLITTING ATTACK
+============================================================
+
+--- STARTING THE ENVIRONMENT ---
+
+1. Start the VM (bsqliEnv or httpEnv depending on attack)
+   Username: httpEnv
+   Password: 5260
+
+2. Open terminal in VM and start Docker containers:
+   docker start apache2-web-ver2
+   docker start p-ws-ver2
+   docker start attacker
+   docker start client
+
+3. Access attacker container:
+   docker exec -it attacker /bin/bash
+
+4. Access client container (for verification):
+   docker exec -it client /bin/bash
+
+--- WORKING WITH FILES ---
+
+5. Navigate to shared directory in VM:
+   cd /home/httpenv/Desktop/attacker
+
+6. Create/edit your attack file:
+   nano ex4_splitting.c
+   (or use any text editor)
+
+7. Files placed in /home/httpenv/Desktop/attacker (VM) are accessible in container at:
+   /tmp/attacker
+
+--- COMPILING THE CODE (FROM ATTACKER CONTAINER) ---
+
+8. Navigate to shared directory:
+   cd /tmp/attacker
+
+9. Compile with strict warnings:
+   gcc -Wall -Wextra -Werror -Wconversion ex4_splitting.c -o splitting
+
+10. Check for compilation errors/warnings (should be NONE)
+
+--- RUNNING THE ATTACK ---
+
+11. Clear proxy cache before attack:
+    docker exec p-ws-ver2 rm -rf /usr/local/apache2/proxy/*
+
+12. Run the attack from attacker container:
+    ./splitting
+
+13. Verify attack from client container:
+    docker exec -it client /bin/bash
+    curl http://192.168.1.202:8080/67607.html
+    (Should show: <HTML>319028957</HTML>)
+
+--- DEBUGGING ---
+
+14. Check proxy logs:
+    docker exec p-ws-ver2 tail -f /usr/local/apache2/logs/access_log
+    docker exec p-ws-ver2 tail -f /usr/local/apache2/logs/error_log
+
+15. Check web server logs:
+    docker exec apache2-web-ver2 tail -f /usr/local/apache2/logs/access_log
+    docker exec apache2-web-ver2 tail -f /usr/local/apache2/logs/error_log
+
+16. Check proxy cache contents:
+    docker exec p-ws-ver2 ls -la /usr/local/apache2/proxy/
+
+17. Use Wireshark to capture traffic:
+    docker network inspect http-a-net2
+    (Note the network ID)
+    sudo wireshark
+    (Select interface br-<network-ID>)
+
+18. Test vulnerable endpoint manually from client:
+    curl "http://192.168.1.202:8080/cgi-bin/course_selector?course_id=test"
+
+19. View the form page:
+    curl http://192.168.1.202:8080/doomle.html
+
+--- RESTARTING ENVIRONMENT ---
+
+20. Restart proxy between tests:
+    docker restart p-ws-ver2
+
+21. Restart web server if needed:
+    docker restart apache2-web-ver2
+
+22. Restart all containers:
+    docker restart apache2-web-ver2 p-ws-ver2 attacker client
+
+
+============================================================
+PART 2: BLIND SQL INJECTION ATTACK
+============================================================
+
+--- STARTING THE ENVIRONMENT ---
+
+1. Start the VM:
+   Username: bsqliEnv
+   Password: 5260
+
+2. Open terminal and start Docker containers:
+   docker start mariadb-server
+   docker start web-app
+   docker start attacker
+
+3. Access attacker container:
+   docker exec -it attacker /bin/bash
+
+--- WORKING WITH FILES ---
+
+4. Navigate to shared directory in VM:
+   cd /home/bsqlenv/Desktop/attacker
+
+5. Create/edit your attack file:
+   nano ex4_sqli.c
+
+6. Files in /home/bsqlenv/Desktop/attacker (VM) are accessible in container at:
+   /tmp/attacker
+
+--- DATABASE EXPLORATION (FOR TESTING ONLY) ---
+
+7. Connect to database container:
+   docker exec -it mariadb-server /bin/bash
+
+8. Login to MariaDB:
+   mariadb -u u67607 -p 67607db
+   Password: courseUser
+
+9. View all tables in database:
+   SHOW TABLES;
+
+10. View table structure:
+    DESCRIBE <table_name>;
+
+11. View data in table (with delimiters):
+    SELECT id, CONCAT("<", pwd, ">") AS pwd FROM <table_name>;
+
+12. Insert test data (for testing your code):
+    INSERT INTO <table_name> (id, pwd) VALUES ('319028957', 'testpass123');
+
+13. Delete test data:
+    DELETE FROM <table_name> WHERE id = '319028957';
+
+14. Exit MariaDB:
+    EXIT;
+
+15. Exit database container:
+    exit
+
+--- TESTING WEB APPLICATION ---
+
+16. Test web app from VM browser:
+    http://localhost:8080/index.php?order_id=1
+
+17. Test web app from attacker container:
+    curl "http://192.168.1.202/index.php?order_id=1"
+
+18. Test SQL injection manually:
+    curl "http://192.168.1.202/index.php?order_id=-1%20UNION%20SELECT%201%20WHERE%201=1"
+    (Should show: "Your order has been sent!")
+
+19. Test FALSE condition:
+    curl "http://192.168.1.202/index.php?order_id=-1%20UNION%20SELECT%201%20WHERE%201=0"
+    (Should show: "Your order has not been sent yet.")
+
+--- COMPILING THE CODE (FROM ATTACKER CONTAINER) ---
+
+20. Navigate to shared directory:
+    cd /tmp/attacker
+
+21. Compile with strict warnings:
+    gcc -Wall -Wextra -Werror -Wconversion ex4_sqli.c -o sqli
+
+22. Check for compilation errors/warnings (should be NONE)
+
+--- RUNNING THE ATTACK ---
+
+23. Run the attack:
+    ./sqli
+
+24. Check if password file was created:
+    ls -la *.txt
+
+25. View password file contents:
+    cat 319028957.txt
+    (Should show: *password*)
+
+--- DEBUGGING ---
+
+26. Check web app logs:
+    docker exec web-app tail -f /var/log/apache2/access.log
+    docker exec web-app tail -f /var/log/apache2/error.log
+
+27. Check database logs:
+    docker exec mariadb-server tail -f /var/log/mysql/error.log
+
+28. View web app source code:
+    cat /home/bsqlenv/Desktop/index.php
+
+29. Use Wireshark to capture traffic:
+    docker network inspect bsqli-net
+    (Note the network ID)
+    sudo wireshark
+    (Select interface br-<network-ID>)
+
+30. Monitor query count in your code by adding temporary debug output to stderr
+
+--- RESTARTING ENVIRONMENT ---
+
+31. Restart web application:
+    docker restart web-app
+
+32. Restart database:
+    docker restart mariadb-server
+
+33. Restart all containers:
+    docker restart mariadb-server web-app attacker
+
+
+============================================================
+GENERAL COMMANDS
+============================================================
+
+--- DOCKER MANAGEMENT ---
+
+1. List all containers:
+   docker ps -a
+
+2. Stop a container:
+   docker stop <container-name>
+
+3. Remove a container:
+   docker rm <container-name>
+
+4. View container logs:
+   docker logs <container-name>
+
+5. View container resource usage:
+   docker stats
+
+6. List Docker networks:
+   docker network ls
+
+7. Inspect network details:
+   docker network inspect <network-name>
+
+--- FILE MANAGEMENT ---
+
+8. Copy file from VM to container:
+   docker cp /path/on/vm <container-name>:/path/in/container
+
+9. Copy file from container to VM:
+   docker cp <container-name>:/path/in/container /path/on/vm
+
+10. View file in container without entering:
+    docker exec <container-name> cat /path/to/file
+
+11. Remove files from container:
+    docker exec <container-name> rm /path/to/file
+
+--- NETWORK TESTING ---
+
+12. Test connectivity between containers:
+    docker exec attacker ping 192.168.1.202
+
+13. Check open ports:
+    docker exec <container-name> netstat -tuln
+
+14. Use tcpdump in container:
+    docker exec <container-name> tcpdump -i any -n
+
+--- SUBMISSION PREPARATION ---
+
+15. Create submission directory:
+    mkdir -p ~/ex4_submission
+
+16. Copy files to submission directory:
+    cp ex4_splitting.c ~/ex4_submission/
+    cp ex4_sqli.c ~/ex4_submission/
+    cp explanation.txt ~/ex4_submission/
+    cp readme.txt ~/ex4_submission/
+    cp llm_report.txt ~/ex4_submission/
+
+17. Create zip file (from parent directory):
+    cd ~
+    zip -r ex4.zip ex4_submission/
+
+18. Verify zip contents:
+    unzip -l ex4.zip
+
+19. Extract and test submission:
+    mkdir test_submission
+    cd test_submission
+    unzip ../ex4.zip
+    cd ex4_submission
+
+20. Test HTTP Response Splitting:
+    docker exec -it attacker /bin/bash
+    cd /tmp/attacker
+    gcc -Wall -Wextra -Werror -Wconversion ex4_splitting.c -o splitting
+    docker exec p-ws-ver2 rm -rf /usr/local/apache2/proxy/*
+    ./splitting
+    # Verify from client container
+    docker exec client curl http://192.168.1.202:8080/67607.html
+
+21. Test Blind SQL Injection:
+    docker exec -it attacker /bin/bash
+    cd /tmp/attacker
+    gcc -Wall -Wextra -Werror -Wconversion ex4_sqli.c -o sqli
+    rm -f *.txt
+    ./sqli
+    cat 319028957.txt
+
+
+============================================================
+QUICK REFERENCE - COMMON WORKFLOWS
+============================================================
+
+--- WORKFLOW 1: DEVELOP & TEST HTTP RESPONSE SPLITTING ---
+
+1. Edit code in VM: /home/httpenv/Desktop/attacker/ex4_splitting.c
+2. In attacker container: cd /tmp/attacker
+3. Compile: gcc -Wall -Wextra -Werror -Wconversion ex4_splitting.c -o splitting
+4. Clear cache: docker exec p-ws-ver2 rm -rf /usr/local/apache2/proxy/*
+5. Run: ./splitting
+6. Verify: docker exec client curl http://192.168.1.202:8080/67607.html
+7. If failed, restart proxy: docker restart p-ws-ver2
+8. Repeat from step 4
+
+--- WORKFLOW 2: DEVELOP & TEST BLIND SQL INJECTION ---
+
+1. Edit code in VM: /home/bsqlenv/Desktop/attacker/ex4_sqli.c
+2. In attacker container: cd /tmp/attacker
+3. Compile: gcc -Wall -Wextra -Werror -Wconversion ex4_sqli.c -o sqli
+4. Remove old output: rm -f *.txt
+5. Run: ./sqli
+6. Check output: cat 319028957.txt
+7. If failed, restart web app: docker restart web-app
+8. Repeat from step 4
+
+--- WORKFLOW 3: FINAL SUBMISSION CHECK ---
+
+1. Place all 5 files in flat directory:
+   - ex4_splitting.c
+   - ex4_sqli.c
+   - explanation.txt
+   - readme.txt
+   - llm_report.txt
+
+2. Create zip: zip -r ex4.zip *.c *.txt
+
+3. Extract to new directory and test both attacks
+
+4. Verify:
+   - No compilation warnings
+   - Both attacks run successfully
+   - Correct output format
+   - No stdout output (only stderr on errors)
+   - Time limits met (10s splitting, 30s sqli)
+   - Query limit met (<400 for sqli)
+
+5. Submit ex4.zip to Moodle
+
+
+============================================================
+TROUBLESHOOTING
+============================================================
+
+PROBLEM: "Connection refused"
+SOLUTION: 
+- Check if containers are running: docker ps
+- Restart containers: docker restart <container-name>
+- Check IP addresses: docker network inspect <network-name>
+
+PROBLEM: "Compilation warnings"
+SOLUTION:
+- Fix all warnings before submission
+- Use explicit casts for type conversions
+- Check printf format specifiers match argument types
+
+PROBLEM: Cache not poisoning
+SOLUTION:
+- Clear cache before each attempt
+- Ensure both requests on same TCP connection
+- Check Last-Modified header is correct
+- Verify no recv() between the two send() calls
+- Use Wireshark to verify packet structure
+
+PROBLEM: SQL injection not working
+SOLUTION:
+- Test oracle manually with curl
+- Verify order_id parameter (not "order")
+- Check URL encoding of special characters
+- Ensure spaces are %20 not +
+- Verify UNION query syntax
+
+PROBLEM: Query limit exceeded
+SOLUTION:
+- Use binary search instead of linear
+- Pre-calculate string length
+- Minimize redundant queries
+- Track query_counter and add checks
+
+PROBLEM: Attack takes too long
+SOLUTION:
+- Optimize query efficiency
+- Reduce unnecessary string operations
+- Minimize socket creation/destruction
+- Use efficient algorithms (binary search)
+
+PROBLEM: Password file format wrong
+SOLUTION:
+- Ensure format is: *password*
+- No spaces: <HTML>123456789</HTML>
+- Filename is ID.txt
+- Use fprintf(file, "*%s*", password)
+
+
+============================================================
+END OF COMMAND REFERENCE
+============================================================
