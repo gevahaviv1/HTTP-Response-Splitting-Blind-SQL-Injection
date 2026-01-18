@@ -173,7 +173,7 @@ int main(void) {
     // Send the first request to the proxy
     bytes_sent = send(sockfd, first_request, request_len, 0);
     if (bytes_sent < 0 || (size_t)bytes_sent != request_len) {  // Check if send failed
-        fprintf(stderr, "Error: Failed to send first request\n");
+        // fprintf(stderr, "Error: Failed to send first request\n");
         close(sockfd);
         exit(1);
     }
@@ -205,8 +205,8 @@ int main(void) {
         exit(1);
     }
 
-    buffer[bytes_received] = '\0';  // Null-terminate the received data
-    printf("%s", buffer);           // Print the response to stdout
+    // buffer[bytes_received] = '\0';  // Null-terminate the received data
+    // printf("%s", buffer);           // Print the response to stdout
     
     close(sockfd);  // Close the socket connection
     return 0;       // Exit successfully
