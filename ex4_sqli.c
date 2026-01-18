@@ -7,7 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define ID "319028957"         // edens or geva ID 
+#define ID "319028957"         //  gevas ID 
 #define TARGET_IP "192.168.1.202"
 // HTTP port for the vulnerable web application
 #define TARGET_PORT 80

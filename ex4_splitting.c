@@ -7,7 +7,7 @@
 #include <netinet/in.h> 
 #include <arpa/inet.h>  
 
-#define ID "319028957"         // edens or geva ID to inject into cached page
+#define ID "319028957"         // gevas ID to inject into cached page
 #define ONE_HOUR 3600                // Number of seconds in one hour
 #define TARGET_IP "192.168.1.202"    // Reverse proxy server IP address
 #define TARGET_PORT 8080             // Reverse proxy server port
